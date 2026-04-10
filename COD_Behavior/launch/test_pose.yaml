@@ -1,0 +1,70 @@
+cod_behavior:
+  ros__parameters:
+    cod_bt_path:
+      "COD_Behavior/cod_bt/test.xml"
+    nav_pose:
+      home:  
+        frame_id: "map"
+        position:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        orientation:
+          w: 1.0
+
+     main:
+        frame_id: "map"
+        position:
+          x: 4.59319
+          y: -3.16278
+          z: 0.0
+        orientation:
+          w: 1.0
+
+
+      main1:  
+        frame_id: "map"
+        position:
+          x: 5.05161
+          y: 0.5
+          z: 0.0
+        orientation:
+          w: 1.0
+
+    D_patrol_pose:
+      first:  
+        frame_id: "map"
+        position:
+          x: 2.0
+          y: -1.0
+          z: 0.0
+        orientation:
+          w: 1.0
+
+      second:  
+        frame_id: "map"
+        position:
+          x: -2.0
+          y: -1.0
+          z: 0.0
+        orientation:
+          w: 1.0
+
+    A_patrol_pose:
+      first:  
+        frame_id: "map"
+        position:
+          x: 3.05161
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+
+      second:  
+        frame_id: "map"
+        position:
+          x: 1.05161
+          y: -4.0
+          z: 0.0
+        orientation:
+          w: 1.0
