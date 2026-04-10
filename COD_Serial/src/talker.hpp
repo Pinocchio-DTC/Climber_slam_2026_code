@@ -13,7 +13,6 @@
 #include "std_msgs/msg/string.hpp"
 #include "serial/serial.h"
 #include "geometry_msgs/msg/twist.hpp"
-#include "zone_mode_switcher.hpp"
 
 using namespace std;
 using namespace std::chrono_literals;
@@ -75,7 +74,6 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mission_event_pub_;
 
     // 串口通信成员
     serial::Serial serial_port_;
@@ -85,25 +83,11 @@ private:
     bool is_serial_open_;
     std::deque<uint8_t> buffer_;
 
-    // 决策辅助成员
-    uint16_t old_seven_hp_{0};
-    uint16_t old_three_our_sentry_{0};
-    bool has_nav_goal_active_{false};
-
-    // 发送到底盘的最新速度缓存（无导航目标时按10Hz发送）
+    // 发送到底盘的最新速度缓存（按10Hz周期发送）
     int16_t cached_vx_{0};
     int16_t cached_vy_{0};
     int16_t cached_vz_{0};
     rclcpp::Time last_idle_cmd_send_time_;
-
-    // 任务事件去重与节流状态
-    bool has_last_mission_event_{false};
-    std::string last_mission_event_;
-    rclcpp::Time last_mission_event_time_;
-    
-    // 区域模式切换器和当前决策参数
-    std::shared_ptr<cod_serial::ZoneModeSwitcher> zone_switcher_;
-    cod_serial::ModeDecisionParams mode_params_;
 
     // --- 方法声明 ---
 
@@ -118,7 +102,6 @@ private:
     // 辅助函数
     uint8_t calc_checksum(const std::vector<uint8_t> &packet);
     void send_cmd_packet(int16_t vx, int16_t vy, int16_t vz);
-    void execute_mode_navigation(const cod_serial::DecisionResult &decision);
 };
 
 #endif 
