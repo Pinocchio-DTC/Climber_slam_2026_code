@@ -10,11 +10,12 @@
         <ReactiveFallback>
           <Inverter>
             <WriteToBlackboard Hp="{hp}"
-                               Zone_status="{zone_status}"
-                               Is_defence="{is_defence}"
-                               Is_attack="{is_attack}"
-                               Self_status="{self_status}"
-                               Is_recover="{is_recover}"/>
+                               Enemy_outpost_alive="{enemy_outpost_alive}"
+                               Our_outpost_alive="{our_outpost_alive}"
+                               Enemy_base_hp="{enemy_base_hp}"
+                               Our_base_hp="{our_base_hp}"
+                               Sentry_mode="{sentry_mode}"
+                               Sentry_buff="{sentry_buff}"/>
           </Inverter>
           <Sequence>
             <HpCondition Hp="{hp}"/>
@@ -108,11 +109,12 @@
     <Action ID="WriteToBlackboard"
             editable="true">
       <output_port name="Hp"/>
-      <output_port name="Zone_status"/>
-      <output_port name="Is_defence"/>
-      <output_port name="Is_attack"/>
-      <output_port name="Self_status"/>
-      <output_port name="Is_recover"/>
+      <output_port name="Enemy_outpost_alive"/>
+      <output_port name="Our_outpost_alive"/>
+      <output_port name="Enemy_base_hp"/>
+      <output_port name="Our_base_hp"/>
+      <output_port name="Sentry_mode"/>
+      <output_port name="Sentry_buff"/>
     </Action>
   </TreeNodesModel>
 

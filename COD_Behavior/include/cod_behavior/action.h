@@ -394,21 +394,23 @@ public:
     static BT::PortsList providedPorts() {
         return {
             BT::OutputPort<float>("Hp"),
-            BT::OutputPort<bool>("Zone_status"),
-            BT::OutputPort<bool>("Is_defence"),
-            BT::OutputPort<bool>("Is_attack"),
-            BT::OutputPort<bool>("Self_status"),
-            BT::OutputPort<bool>("Is_recover"),
+            BT::OutputPort<bool>("Enemy_outpost_alive"),
+            BT::OutputPort<bool>("Our_outpost_alive"),
+            BT::OutputPort<int>("Enemy_base_hp"),
+            BT::OutputPort<int>("Our_base_hp"),
+            BT::OutputPort<int>("Sentry_mode"),
+            BT::OutputPort<bool>("Sentry_buff"),
         };
     }
 
     //设置参数
     float hp = 400;
-    bool zone_status = false;
-    bool is_defence = false;
-    bool is_attack = false;
-	bool self_status = false;
-	bool is_recover = false;
+    bool enemy_outpost_alive = false;
+    bool our_outpost_alive = false;
+    int enemy_base_hp = 0;
+    int our_base_hp = 0;
+    int sentry_mode = 0;
+    bool sentry_buff = false;
 
     BT::NodeStatus tick() override {
         // 处理回调
@@ -418,30 +420,39 @@ public:
 
         //写入黑板
         setOutput("Hp", hp);
-        setOutput("Zone_status", zone_status);
-        setOutput("Is_defence", is_defence);
-        setOutput("Is_attack", is_attack);
-        setOutput("Self_status", self_status);
-        setOutput("Is_recover", is_recover);
+        setOutput("Enemy_outpost_alive", enemy_outpost_alive);
+        setOutput("Our_outpost_alive", our_outpost_alive);
+        setOutput("Enemy_base_hp", enemy_base_hp);
+        setOutput("Our_base_hp", our_base_hp);
+        setOutput("Sentry_mode", sentry_mode);
+        setOutput("Sentry_buff", sentry_buff);
 
         std::cout << "WriteToBlackboard: hp=" << hp
-                  << ", zone_status=" << zone_status
-                  << ", self_status=" << self_status
+              << ", outpost(enemy=" << enemy_outpost_alive
+              << ", our=" << our_outpost_alive << ")"
                   << std::endl;
 
         return BT::NodeStatus::SUCCESS;
     }
 
     void callback(const rm_interfaces::msg::SerialReceiveData::SharedPtr msg) {
-        hp = msg->judge_system_data.hp;
-        zone_status = msg->judge_system_data.zone_status;
-        is_defence = msg->judge_system_data.is_defence;
-        is_attack = msg->judge_system_data.is_attack;
-        self_status = msg->judge_system_data.self_status;
-        is_recover = msg->judge_system_data.is_recover;
+        // 仅保留 7v7 数据路径
+        hp = static_cast<float>(msg->hp);
+        enemy_outpost_alive = msg->enemy_outpost_alive;
+        our_outpost_alive = msg->our_outpost_alive;
+        enemy_base_hp = static_cast<int>(msg->enemy_base_hp);
+        our_base_hp = static_cast<int>(msg->our_base_hp);
+        sentry_mode = static_cast<int>(msg->sentry_mode);
+        sentry_buff = msg->sentry_buff;
 
         is_ReadInterface_ = true;
-        RCLCPP_INFO(global_node_->get_logger(), "Callback hp = %f", hp);
+        RCLCPP_INFO(global_node_->get_logger(),
+                    "Callback(7v7) hp=%.1f outpost(enemy=%d,our=%d) base(enemy=%d,our=%d) mode=%d buff=%d",
+                    hp,
+                    enemy_outpost_alive, our_outpost_alive,
+                    enemy_base_hp, our_base_hp,
+                    sentry_mode,
+                    static_cast<int>(sentry_buff));
     }
 
 private:

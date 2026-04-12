@@ -130,11 +130,12 @@ int main(int argc, char **argv) {
         blackboard->set<geometry_msgs::msg::PoseStamped>("ap_position2", ap_goal2);
 
         blackboard->set<float>("hp", 400.0);
-        blackboard->set<bool>("zone_status", false);
-        blackboard->set<bool>("self_status", false);
-        blackboard->set<bool>("is_recover", false);
-        blackboard->set<bool>("is_defence", false);
-        blackboard->set<bool>("is_attack", false);
+        blackboard->set<bool>("enemy_outpost_alive", false);
+        blackboard->set<bool>("our_outpost_alive", false);
+        blackboard->set<int>("enemy_base_hp", 0);
+        blackboard->set<int>("our_base_hp", 0);
+        blackboard->set<int>("sentry_mode", 0);
+        blackboard->set<bool>("sentry_buff", false);
         blackboard->set<double>("distance", 0);
         blackboard->set<int>("wp_idx", 0);
         blackboard->set<double>("wait_sec", 5.0);
