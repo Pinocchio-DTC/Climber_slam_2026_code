@@ -10,7 +10,7 @@
 #include <arpa/inet.h>
 
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
+#include "rm_interfaces/msg/serial_receive_data.hpp"
 #include "serial/serial.h"
 #include "geometry_msgs/msg/twist.hpp"
 
@@ -73,7 +73,7 @@ private:
     // ROS2 成员
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;
+    rclcpp::Publisher<rm_interfaces::msg::SerialReceiveData>::SharedPtr pub_;
 
     // 串口通信成员
     serial::Serial serial_port_;

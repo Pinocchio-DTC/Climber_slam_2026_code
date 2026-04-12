@@ -1,5 +1,34 @@
     #include "talker.hpp"
 
+    #include <iomanip>
+    #include <sstream>
+
+    namespace
+    {
+    std::string bytes_to_hex_preview(const std::vector<uint8_t> &bytes, std::size_t max_len = 32)
+    {
+        std::ostringstream oss;
+        oss << std::hex << std::setfill('0');
+
+        const std::size_t print_len = std::min(bytes.size(), max_len);
+        for (std::size_t i = 0; i < print_len; ++i)
+        {
+            if (i != 0)
+            {
+                oss << ' ';
+            }
+            oss << std::setw(2) << static_cast<int>(bytes[i]);
+        }
+
+        if (bytes.size() > max_len)
+        {
+            oss << " ...";
+        }
+
+        return oss.str();
+    }
+    } // namespace
+
     ReceiveNode::ReceiveNode() : Node("talker"), is_serial_open_(false)
     {
         this->declare_parameter("port_name", "/dev/ttySLAM");
@@ -16,7 +45,7 @@
         serial_port_.setTimeout(timeout);
 
         // 3. 创建发布者、订阅者、Action 客户端和定时器
-        pub_ = this->create_publisher<std_msgs::msg::String>("communication_data", 10);
+        pub_ = this->create_publisher<rm_interfaces::msg::SerialReceiveData>("SerialReceiveData", 10);
         cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
             "cmd_vel_nav", 10, std::bind(&ReceiveNode::cmd_vel_callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
@@ -114,6 +143,8 @@
                 std::vector<uint8_t> temp(available);
                 serial_port_.read(temp.data(), available);
                 buffer_.insert(buffer_.end(), temp.begin(), temp.end());
+
+                RCLCPP_INFO(this->get_logger(), "RX %zu bytes: %s", temp.size(), bytes_to_hex_preview(temp).c_str());
             }
 
             if (data_type_ == DATA_TYPE_SEVEN)
@@ -223,24 +254,28 @@
             uint8_t enemy_hero_level_val = data->enemy_hero_level;
             uint8_t enemy_infantry_level_val = data->enemy_infantry_level;
 
-            // 业务逻辑处理 (发布全部消息)
-            auto msg = std::make_unique<std_msgs::msg::String>();
+            rm_interfaces::msg::SerialReceiveData msg;
+            msg.source_mode = DATA_TYPE_THREE;
+            msg.match_time = match_time_val;
+            msg.score_diff = score_diff_val;
+            msg.our_hero_blood = our_hero_blood_val;
+            msg.our_hero_level = our_hero_level_val;
+            msg.our_infantry_blood = our_infantry_blood_val;
+            msg.our_infantry_level = our_infantry_level_val;
+            msg.our_sentry_blood = our_sentry_blood_val;
+            msg.enemy_hero_blood = enemy_hero_blood_val;
+            msg.enemy_hero_level = enemy_hero_level_val;
+            msg.enemy_infantry_blood = enemy_infantry_blood_val;
+            msg.enemy_infantry_level = enemy_infantry_level_val;
+            msg.enemy_sentry_blood = enemy_sentry_blood_val;
 
-            // 拼接全部 12 个字段
-            msg->data = "Three|" + to_string(match_time_val) + "|" +
-                        to_string(score_diff_val) + "|" +
-                        to_string(our_hero_blood_val) + "|" +
-                        to_string(our_hero_level_val) + "|" +
-                        to_string(our_infantry_blood_val) + "|" +
-                        to_string(our_infantry_level_val) + "|" +
-                        to_string(our_sentry_blood_val) + "|" +
-                        to_string(enemy_hero_blood_val) + "|" +
-                        to_string(enemy_hero_level_val) + "|" +
-                        to_string(enemy_infantry_blood_val) + "|" +
-                        to_string(enemy_infantry_level_val) + "|" +
-                        to_string(enemy_sentry_blood_val);
-
-            pub_->publish(std::move(msg));
+            RCLCPP_INFO(this->get_logger(),
+                        "Parsed(Three): t=%u score=%d our_hero_hp=%u enemy_hero_hp=%u",
+                        msg.match_time,
+                        msg.score_diff,
+                        msg.our_hero_blood,
+                        msg.enemy_hero_blood);
+            pub_->publish(msg);
         }
     }
 
@@ -316,20 +351,28 @@
             uint8_t sentry_mode_val = data->sentry_mode;
             uint8_t sentry_buff_val = data->sentry_buff;
 
-            // 业务逻辑处理 (发布全部消息)
-            auto msg = std::make_unique<std_msgs::msg::String>();
+                rm_interfaces::msg::SerialReceiveData msg;
+                msg.source_mode = DATA_TYPE_SEVEN;
+                msg.match_time = match_time_val;
+                msg.hp = hp_val;
+                msg.enemy_outpost_alive = (enemy_outpost_alive_val != 0);
+                msg.our_outpost_alive = (our_outpost_alive_val != 0);
+                msg.enemy_base_hp = enemy_base_hp_val;
+                msg.our_base_hp = our_base_hp_val;
+                msg.sentry_mode = sentry_mode_val;
+                msg.sentry_buff = (sentry_buff_val != 0);
 
-            // 拼接全部 8 个字段
-            msg->data = "Seven|" + to_string(hp_val) + "|" +
-                    to_string(enemy_outpost_alive_val) + "|" +
-                    to_string(our_outpost_alive_val) + "|" +
-                    to_string(match_time_val) + "|" +
-                    to_string(enemy_base_hp_val) + "|" +
-                    to_string(our_base_hp_val) + "|" +
-                    to_string(sentry_mode_val) + "|" +
-                    (sentry_buff_val ? "是" : "否");
-
-            pub_->publish(std::move(msg));
+                RCLCPP_INFO(this->get_logger(),
+                    "Parsed(Seven): t=%u hp=%u outpost(enemy=%d,our=%d) base(enemy=%u,our=%u) mode=%u buff=%d",
+                    msg.match_time,
+                    msg.hp,
+                    msg.enemy_outpost_alive,
+                    msg.our_outpost_alive,
+                    msg.enemy_base_hp,
+                    msg.our_base_hp,
+                    msg.sentry_mode,
+                    msg.sentry_buff);
+                pub_->publish(msg);
         }
     }
 
