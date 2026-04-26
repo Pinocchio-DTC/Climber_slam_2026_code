@@ -162,11 +162,7 @@ public:
     // 当收到action反馈时调用
     BT::NodeStatus onFeedback(
         const std::shared_ptr<const nav2_msgs::action::NavigateToPose::Feedback> feedback) override {
-        // 这里可以处理反馈信息，例如显示剩余距离
-        std::cout << "Distance remaining: " << feedback->distance_remaining << '\n';
-
-        // 可选：可以添加更多的反馈处理逻辑
-        // 例如检查进度、更新UI等
+        (void)feedback;
 
         // 返回RUNNING状态表示动作仍在进行中
         return BT::NodeStatus::RUNNING;
