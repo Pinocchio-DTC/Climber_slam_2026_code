@@ -1,23 +1,33 @@
 cod_behavior:
   ros__parameters:
     cod_bt_path:
-      "COD_Behavior/cod_bt/singlenav_attack_front_tree.xml"
+      "COD_Behavior/cod_bt/tactical_front_tree.xml"
     zone_mode_csv: "COD_Behavior/launch/zone_modes_front.csv"
     zone_mode_topic: "/sentry_mode_cmd"
     zone_map_frame: "map"
     zone_robot_frame: "base_link"
     zone_default_mode: "defense"
+    front_patrol_csv: "/home/nucshao/Climber_slam_2026_COD_NAV/src/cod_bringup/wps/test1.csv"
     nav_pose:
-      home:  #补给区位置坐标
+      home:
         frame_id: "map"
         position:
-          x: 0.0
-          y: 0.0
+          x: -0.396
+          y: -2.48
           z: 0.0
         orientation:
           w: 1.0
 
-      main:  #中心增益区位置坐标1
+      fortress:
+        frame_id: "map"
+        position:
+          x: 4.81
+          y: 1.4
+          z: 0.0
+        orientation:
+          w: 1.0
+
+      main:
         frame_id: "map"
         position:
           x: 4.59319
@@ -26,7 +36,7 @@ cod_behavior:
         orientation:
           w: 1.0
 
-      main1:  #中心增益区位置坐标2
+      main1:
         frame_id: "map"
         position:
           x: 5.05161
@@ -36,7 +46,7 @@ cod_behavior:
           w: 1.0
 
     D_patrol_pose:
-      first:  #回防位置坐标1
+      first:
         frame_id: "map"
         position:
           x: 2.0
@@ -45,7 +55,7 @@ cod_behavior:
         orientation:
           w: 1.0
 
-      second:  #回防位置坐标2
+      second:
         frame_id: "map"
         position:
           x: -2.0
@@ -55,7 +65,7 @@ cod_behavior:
           w: 1.0
 
     A_patrol_pose:
-      first:  #前压位置坐标1
+      first:
         frame_id: "map"
         position:
           x: 3.05161
@@ -64,7 +74,7 @@ cod_behavior:
         orientation:
           w: 1.0
 
-      second:  #前压位置坐标2
+      second:
         frame_id: "map"
         position:
           x: 1.05161

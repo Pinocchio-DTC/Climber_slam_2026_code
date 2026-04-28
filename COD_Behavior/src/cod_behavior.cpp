@@ -79,10 +79,19 @@ int main(int argc, char **argv) {
             return std::make_unique<WriteToBlackboard>(name, config, global_node_);
         }
     );
+    factory.registerNodeType<AnnounceBehavior>("AnnounceBehavior");
+    factory.registerBuilder<ZoneModeSwitcherAction>(
+        "ZoneModeSwitcher",
+        [&](const std::string &name, const BT::NodeConfig &config) {
+            return std::make_unique<ZoneModeSwitcherAction>(name, config, global_node_);
+        }
+    );
 
     factory.registerNodeType<HpCondition>("HpCondition");
+    factory.registerNodeType<HpAboveCondition>("HpAboveCondition");
     factory.registerNodeType<ZsCondition>("ZsCondition");
     factory.registerNodeType<StayHome>("StayHome");
+    factory.registerNodeType<BaseHpBelowCondition>("BaseHpBelowCondition");
     factory.registerNodeType<DefencePatrolConditioin>("DefencePatrolConditioin");
     factory.registerNodeType<AttackPatrolCondition>("AttackPatrolCondition");
     factory.registerNodeType<OffensiveCondition>("OffensiveCondition");
@@ -114,6 +123,10 @@ int main(int argc, char **argv) {
         auto maingoal1 = loadPoseStamped(global_node_, "nav_pose.main1");
 
         auto homegoal = loadPoseStamped(global_node_, "nav_pose.home");
+        auto fortressgoal =
+            global_node_->has_parameter("nav_pose.fortress.frame_id")
+                ? loadPoseStamped(global_node_, "nav_pose.fortress")
+                : homegoal;
         auto dp_goal1 = loadPoseStamped(global_node_, "D_patrol_pose.first");
         auto dp_goal2 = loadPoseStamped(global_node_, "D_patrol_pose.second");
         auto ap_goal1 = loadPoseStamped(global_node_, "A_patrol_pose.first");
@@ -124,6 +137,7 @@ int main(int argc, char **argv) {
         blackboard->set<geometry_msgs::msg::PoseStamped>("main1_position", maingoal1);
 
         blackboard->set<geometry_msgs::msg::PoseStamped>("home_position", homegoal);
+        blackboard->set<geometry_msgs::msg::PoseStamped>("fortress_position", fortressgoal);
         blackboard->set<geometry_msgs::msg::PoseStamped>("dp_position1", dp_goal1);
         blackboard->set<geometry_msgs::msg::PoseStamped>("dp_position2", dp_goal2);
         blackboard->set<geometry_msgs::msg::PoseStamped>("ap_position1", ap_goal1);
@@ -139,6 +153,37 @@ int main(int argc, char **argv) {
         blackboard->set<double>("distance", 0);
         blackboard->set<int>("wp_idx", 0);
         blackboard->set<double>("wait_sec", 5.0);
+        blackboard->set<std::string>("current_behavior_label", "");
+        blackboard->set<std::string>(
+            "zone_mode_csv",
+            global_node_->has_parameter("zone_mode_csv")
+                ? global_node_->get_parameter("zone_mode_csv").as_string()
+                : "");
+        blackboard->set<std::string>(
+            "zone_mode_topic",
+            global_node_->has_parameter("zone_mode_topic")
+                ? global_node_->get_parameter("zone_mode_topic").as_string()
+                : "/sentry_mode_cmd");
+        blackboard->set<std::string>(
+            "zone_map_frame",
+            global_node_->has_parameter("zone_map_frame")
+                ? global_node_->get_parameter("zone_map_frame").as_string()
+                : "map");
+        blackboard->set<std::string>(
+            "zone_robot_frame",
+            global_node_->has_parameter("zone_robot_frame")
+                ? global_node_->get_parameter("zone_robot_frame").as_string()
+                : "base_link");
+        blackboard->set<std::string>(
+            "zone_default_mode",
+            global_node_->has_parameter("zone_default_mode")
+                ? global_node_->get_parameter("zone_default_mode").as_string()
+                : "defense");
+        blackboard->set<std::string>(
+            "front_patrol_csv",
+            global_node_->has_parameter("front_patrol_csv")
+                ? global_node_->get_parameter("front_patrol_csv").as_string()
+                : "");
 
 
         

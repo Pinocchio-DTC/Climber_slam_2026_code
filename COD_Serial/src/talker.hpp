@@ -13,6 +13,7 @@
 #include "rm_interfaces/msg/serial_receive_data.hpp"
 #include "serial/serial.h"
 #include "geometry_msgs/msg/twist.hpp"
+#include "std_msgs/msg/int32.hpp"
 
 using namespace std;
 using namespace std::chrono_literals;
@@ -72,6 +73,7 @@ public:
 private:
     // ROS2 成员
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sentry_mode_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<rm_interfaces::msg::SerialReceiveData>::SharedPtr pub_;
 
@@ -80,6 +82,7 @@ private:
     std::string port_name_;
     int baud_rate_;
     std::string data_type_;
+    bool enable_downlink_receive_;
     bool is_serial_open_;
     std::deque<uint8_t> buffer_;
 
@@ -87,6 +90,7 @@ private:
     int16_t cached_vx_{0};
     int16_t cached_vy_{0};
     int16_t cached_vz_{0};
+    uint8_t cached_sentry_mode_{0};
     rclcpp::Time last_idle_cmd_send_time_;
 
     // --- 方法声明 ---
@@ -94,6 +98,7 @@ private:
     // 回调函数
     void timer_callback();
     void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
+    void sentry_mode_callback(const std_msgs::msg::Int32::SharedPtr msg);
 
     // 解析逻辑
     void parse_three();

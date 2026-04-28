@@ -19,6 +19,18 @@
                                Self_status="{self_status}"
                                Is_recover="{is_recover}"/>
           </Inverter>
+          <Inverter>
+            <ZoneModeSwitcher zone_csv="{zone_mode_csv}"
+                              map_frame="{zone_map_frame}"
+                              robot_frame="{zone_robot_frame}"
+                              mode_topic="{zone_mode_topic}"
+                              default_mode="{zone_default_mode}"
+                              publish_interval_ms="200"
+                              Current_mode="{current_zone_mode}"
+                              Current_mode_name="{current_zone_mode_name}"
+                              Robot_x="{robot_x}"
+                              Robot_y="{robot_y}"/>
+          </Inverter>
           <Sequence>
             <HpCondition Hp="{hp}"/>
             <ReactiveSequence>
@@ -34,7 +46,7 @@
           <ReactiveSequence>
             <ZonePatrolCondition Zone_status="{zone_status}"/>
             <Sequence>
-              <LoadWaypoints waypoint_file="/home/cod-sentry/dyx_ws/cod-sentry/src/cod_bringup/wps/patrol.csv"
+              <LoadWaypoints waypoint_file="/home/nucshao/Climber_slam_2026_COD_NAV/src/cod_bringup/wps/test1.csv"
                              frame_id="map"
                              waypoints="{waypoints}"
                              wait_times="{wait_times}"
@@ -62,7 +74,7 @@
             </Sequence>
           </ReactiveSequence>
           <Sequence>
-            <LoadWaypoints waypoint_file="/home/cod-sentry/dyx_ws/cod-sentry/src/cod_bringup/wps/preload_patrol.csv"
+            <LoadWaypoints waypoint_file="/home/nucshao/Climber_slam_2026_COD_NAV/src/cod_bringup/wps/test1.csv"
                            frame_id="map"
                            waypoints="{waypoints}"
                            wait_times="{wait_times}"
@@ -149,6 +161,19 @@
       <output_port name="Is_attack"/>
       <output_port name="Self_status"/>
       <output_port name="Is_recover"/>
+    </Action>
+    <Action ID="ZoneModeSwitcher"
+            editable="true">
+      <input_port name="zone_csv"/>
+      <input_port name="map_frame"/>
+      <input_port name="robot_frame"/>
+      <input_port name="mode_topic"/>
+      <input_port name="default_mode"/>
+      <input_port name="publish_interval_ms"/>
+      <output_port name="Current_mode"/>
+      <output_port name="Current_mode_name"/>
+      <output_port name="Robot_x"/>
+      <output_port name="Robot_y"/>
     </Action>
     <Condition ID="ZonePatrolCondition"
                editable="true">

@@ -21,12 +21,15 @@ find_package(rm_interfaces REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(behaviortree_ros2 REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_executable(tree_1 src/cod_behavior.cpp)
 add_executable(test_1 test/test_GoZone.cpp)
 add_executable(test_2 test/test_OnZone.cpp)
 add_executable(test_3 test/test_LowHp.cpp)
 add_executable(test_4 test/test_Recover.cpp)
+add_executable(test_tactical_serial test/test_tactical_serial.cpp)
+add_executable(test_tactical_transition test/test_tactical_transition.cpp)
 
 ament_target_dependencies(tree_1
         rclcpp
@@ -39,6 +42,7 @@ ament_target_dependencies(tree_1
         tf2_geometry_msgs
         tf2_ros
         behaviortree_ros2
+        std_msgs
 )
 
 ament_target_dependencies(test_1
@@ -57,6 +61,14 @@ ament_target_dependencies(test_4
         rclcpp
         rm_interfaces
 )
+ament_target_dependencies(test_tactical_serial
+        rclcpp
+        rm_interfaces
+)
+ament_target_dependencies(test_tactical_transition
+        rclcpp
+        rm_interfaces
+)
 
 include_directories(
         include
@@ -67,6 +79,8 @@ install(TARGETS tree_1
         test_2
         test_3
         test_4
+        test_tactical_serial
+        test_tactical_transition
         DESTINATION lib/${PROJECT_NAME}
 )
 

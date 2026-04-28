@@ -26,6 +26,7 @@ ament_target_dependencies(talker
         rclcpp
         rm_interfaces
         geometry_msgs
+        std_msgs
 )
 
 target_link_libraries(cod_serial

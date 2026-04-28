@@ -91,6 +91,20 @@ ros2 run cod_behavior tree_1
 ros2 run cod_behavior test_1
 ```
 
+### 区域编辑器
+
+区域编辑器使用 launch 文件启动，不需要在命令行手写地图路径。先在 [COD_Behavior/launch/zone_map_editor.launch.py](/home/nucshao/Climber_slam_2026_code/COD_Behavior/launch/zone_map_editor.launch.py) 中修改：
+
+- `pgm_path`
+- `map_yaml_path`
+- `out_csv_path`
+
+然后运行：
+
+```bash
+ros2 launch cod_behavior zone_map_editor.launch.py
+```
+
 ### Groot2 可视化
 
 行为树运行时会在端口 `5555` 开启 Groot2 Publisher，可使用 [Groot2](https://www.behaviortree.dev/groot/) 连接实时查看行为树状态。

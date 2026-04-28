@@ -1,43 +1,16 @@
     #include "talker.hpp"
 
-    #include <iomanip>
-    #include <sstream>
-
-    namespace
-    {
-    std::string bytes_to_hex_preview(const std::vector<uint8_t> &bytes, std::size_t max_len = 32)
-    {
-        std::ostringstream oss;
-        oss << std::hex << std::setfill('0');
-
-        const std::size_t print_len = std::min(bytes.size(), max_len);
-        for (std::size_t i = 0; i < print_len; ++i)
-        {
-            if (i != 0)
-            {
-                oss << ' ';
-            }
-            oss << std::setw(2) << static_cast<int>(bytes[i]);
-        }
-
-        if (bytes.size() > max_len)
-        {
-            oss << " ...";
-        }
-
-        return oss.str();
-    }
-    } // namespace
-
     ReceiveNode::ReceiveNode() : Node("talker"), is_serial_open_(false)
     {
         this->declare_parameter("port_name", "/dev/ttySLAM");
         this->declare_parameter("baud_rate", 115200);
         this->declare_parameter("data_type", DATA_TYPE_SEVEN);
+        this->declare_parameter("enable_downlink_receive", true);
 
         port_name_ = this->get_parameter("port_name").as_string();
         baud_rate_ = this->get_parameter("baud_rate").as_int();
         data_type_ = this->get_parameter("data_type").as_string();
+        enable_downlink_receive_ = this->get_parameter("enable_downlink_receive").as_bool();
 
         serial_port_.setPort(port_name_);
         serial_port_.setBaudrate(baud_rate_);
@@ -48,13 +21,12 @@
         pub_ = this->create_publisher<rm_interfaces::msg::SerialReceiveData>("SerialReceiveData", 10);
         cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
             "cmd_vel_nav", 10, std::bind(&ReceiveNode::cmd_vel_callback, this, std::placeholders::_1));
+        sentry_mode_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+            "/sentry_mode_cmd", 10, std::bind(&ReceiveNode::sentry_mode_callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
             500ms, std::bind(&ReceiveNode::timer_callback, this));
 
         last_idle_cmd_send_time_ = this->now();
-
-        RCLCPP_INFO(this->get_logger(), "Node initialized. Port: %s, Mode: %s",
-                    port_name_.c_str(), data_type_.c_str());
     }
 
     // --- 析构函数实现 ---
@@ -87,11 +59,12 @@
         send_buff[4] = (uint8_t)(vy & 0xFF);
         send_buff[5] = (uint8_t)((vz >> 8) & 0xFF);
         send_buff[6] = (uint8_t)(vz & 0xFF);
-        send_buff[7] = 0; // 固定模式字节：仅保留串口通信
+        send_buff[7] = cached_sentry_mode_;
 
         try
         {
             serial_port_.write(send_buff, CMD_LEN);
+            RCLCPP_INFO(this->get_logger(), "send speed: vx=%d vy=%d vz=%d", vx, vy, vz);
         }
         catch (const std::exception &e)
         {
@@ -112,8 +85,24 @@
         send_cmd_packet(cached_vx_, cached_vy_, cached_vz_);
     }
 
+    void ReceiveNode::sentry_mode_callback(const std_msgs::msg::Int32::SharedPtr msg)
+    {
+        const int clamped_mode = std::clamp(msg->data, 0, 255);
+        cached_sentry_mode_ = static_cast<uint8_t>(clamped_mode);
+        RCLCPP_INFO(this->get_logger(), "update sentry mode cmd: %d", clamped_mode);
+
+        if (!is_serial_open_)
+            return;
+
+        send_cmd_packet(cached_vx_, cached_vy_, cached_vz_);
+    }
+
     void ReceiveNode::timer_callback()
     {
+        if (!enable_downlink_receive_)
+        {
+            return;
+        }
 
         if (!is_serial_open_)
         {
@@ -121,16 +110,15 @@
             {
                 serial_port_.open();
                 is_serial_open_ = true;
-                RCLCPP_INFO(this->get_logger(), "串口成功打开");
             }
             catch (const serial::IOException &e)
             {
-                RCLCPP_WARN(this->get_logger(), "串口打开失败(%s): %s", port_name_.c_str(), e.what());
+                (void)e;
                 return;
             }
             catch (const std::exception &e)
             {
-                RCLCPP_ERROR(this->get_logger(), "Unhandled exception during open: %s", e.what());
+                (void)e;
                 return;
             }
         }
@@ -143,8 +131,6 @@
                 std::vector<uint8_t> temp(available);
                 serial_port_.read(temp.data(), available);
                 buffer_.insert(buffer_.end(), temp.begin(), temp.end());
-
-                RCLCPP_INFO(this->get_logger(), "RX %zu bytes: %s", temp.size(), bytes_to_hex_preview(temp).c_str());
             }
 
             if (data_type_ == DATA_TYPE_SEVEN)
@@ -166,14 +152,14 @@
         }
         catch (const serial::IOException &e)
         {
-            RCLCPP_WARN(this->get_logger(), "Serial disconnected: %s", e.what());
+            (void)e;
             serial_port_.close();
             is_serial_open_ = false;
             buffer_.clear(); // 清空残留数据
         }
         catch (const std::exception &e)
         {
-            RCLCPP_ERROR(this->get_logger(), "System error: %s", e.what());
+            (void)e;
             serial_port_.close();
             is_serial_open_ = false;
         }
@@ -232,7 +218,6 @@
             if (!checksum_ok)
             {
                 buffer_.erase(buffer_.begin(), it + 1);
-                RCLCPP_WARN(this->get_logger(), "3V3 Checksum mismatch! Drop packet.");
                 continue;
             }
 
@@ -269,12 +254,6 @@
             msg.enemy_infantry_level = enemy_infantry_level_val;
             msg.enemy_sentry_blood = enemy_sentry_blood_val;
 
-            RCLCPP_INFO(this->get_logger(),
-                        "Parsed(Three): t=%u score=%d our_hero_hp=%u enemy_hero_hp=%u",
-                        msg.match_time,
-                        msg.score_diff,
-                        msg.our_hero_blood,
-                        msg.enemy_hero_blood);
             pub_->publish(msg);
         }
     }
@@ -334,7 +313,6 @@
             if (!checksum_ok)
             {
                 buffer_.erase(buffer_.begin(), it + 1);
-                RCLCPP_WARN(this->get_logger(), "7V7 Checksum mismatch! Drop packet.");
                 continue;
             }
 
@@ -362,16 +340,6 @@
                 msg.sentry_mode = sentry_mode_val;
                 msg.sentry_buff = (sentry_buff_val != 0);
 
-                RCLCPP_INFO(this->get_logger(),
-                    "Parsed(Seven): t=%u hp=%u outpost(enemy=%d,our=%d) base(enemy=%u,our=%u) mode=%u buff=%d",
-                    msg.match_time,
-                    msg.hp,
-                    msg.enemy_outpost_alive,
-                    msg.our_outpost_alive,
-                    msg.enemy_base_hp,
-                    msg.our_base_hp,
-                    msg.sentry_mode,
-                    msg.sentry_buff);
                 pub_->publish(msg);
         }
     }
