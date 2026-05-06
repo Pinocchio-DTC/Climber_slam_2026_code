@@ -11,7 +11,6 @@
 struct SerialData
 {
   uint8_t  hp = 0;
-  uint8_t  zone_status = 0;
 };
 
 
@@ -46,7 +45,6 @@ private:
 
       // ===== 按协议解析 =====
       out.hp = rx_cache_[2];
-      out.zone_status = rx_cache_[3];
 
       rx_cache_.erase(rx_cache_.begin(), rx_cache_.begin() + LEN);
       return true;
@@ -63,7 +61,7 @@ class CODSerialNode : public rclcpp::Node
 {
 public:
   CODSerialNode()
-  : Node("cod_serial_node"),
+  : Node("rm_serial_node"),
     uart_("/dev/ttyACM0", 115200)
   {
     publisher_ = this->create_publisher<
@@ -96,8 +94,8 @@ private:
       rm_interfaces::msg::SerialReceiveData msg;
 
       // ===== 映射到自定义消息 =====
-      msg.judge_system_data.hp = data.hp;
-      msg.judge_system_data.zone_status = data.zone_status;
+      msg.source_mode = "seven";
+      msg.hp = data.hp;
 
       publisher_->publish(msg);
     }
@@ -122,7 +120,7 @@ int main(int argc, char** argv)
   catch (const std::exception& e)
   {
     RCLCPP_FATAL(
-      rclcpp::get_logger("cod_serial"),
+      rclcpp::get_logger("rm_serial"),
       "Node crashed: %s",
       e.what()
     );

@@ -80,22 +80,17 @@ int main(int argc, char **argv) {
         }
     );
     factory.registerNodeType<AnnounceBehavior>("AnnounceBehavior");
-    factory.registerBuilder<ZoneModeSwitcherAction>(
-        "ZoneModeSwitcher",
+    factory.registerBuilder<SetSentryMode>(
+        "SetSentryMode",
         [&](const std::string &name, const BT::NodeConfig &config) {
-            return std::make_unique<ZoneModeSwitcherAction>(name, config, global_node_);
+            return std::make_unique<SetSentryMode>(name, config, global_node_);
         }
     );
 
     factory.registerNodeType<HpCondition>("HpCondition");
     factory.registerNodeType<HpAboveCondition>("HpAboveCondition");
-    factory.registerNodeType<ZsCondition>("ZsCondition");
     factory.registerNodeType<StayHome>("StayHome");
     factory.registerNodeType<BaseHpBelowCondition>("BaseHpBelowCondition");
-    factory.registerNodeType<DefencePatrolConditioin>("DefencePatrolConditioin");
-    factory.registerNodeType<AttackPatrolCondition>("AttackPatrolCondition");
-    factory.registerNodeType<OffensiveCondition>("OffensiveCondition");
-    factory.registerNodeType<ZonePatrolCondition>("ZonePatrolCondition");
 
     // PubNav2Goal 巡逻方案节点
     factory.registerNodeType<LoadWaypoints>("LoadWaypoints");
@@ -119,18 +114,35 @@ int main(int argc, char **argv) {
         blackboard->set<std::shared_ptr<rclcpp::Node> >("global_node", global_node_);
 
         // 初始化黑板数据（保持你的逻辑）
-        auto maingoal = loadPoseStamped(global_node_, "nav_pose.main");
-        auto maingoal1 = loadPoseStamped(global_node_, "nav_pose.main1");
-
         auto homegoal = loadPoseStamped(global_node_, "nav_pose.home");
+        auto maingoal =
+            global_node_->has_parameter("nav_pose.main.frame_id")
+                ? loadPoseStamped(global_node_, "nav_pose.main")
+                : homegoal;
+        auto maingoal1 =
+            global_node_->has_parameter("nav_pose.main1.frame_id")
+                ? loadPoseStamped(global_node_, "nav_pose.main1")
+                : maingoal;
         auto fortressgoal =
             global_node_->has_parameter("nav_pose.fortress.frame_id")
                 ? loadPoseStamped(global_node_, "nav_pose.fortress")
                 : homegoal;
-        auto dp_goal1 = loadPoseStamped(global_node_, "D_patrol_pose.first");
-        auto dp_goal2 = loadPoseStamped(global_node_, "D_patrol_pose.second");
-        auto ap_goal1 = loadPoseStamped(global_node_, "A_patrol_pose.first");
-        auto ap_goal2 = loadPoseStamped(global_node_, "A_patrol_pose.second");
+        auto dp_goal1 =
+            global_node_->has_parameter("D_patrol_pose.first.frame_id")
+                ? loadPoseStamped(global_node_, "D_patrol_pose.first")
+                : homegoal;
+        auto dp_goal2 =
+            global_node_->has_parameter("D_patrol_pose.second.frame_id")
+                ? loadPoseStamped(global_node_, "D_patrol_pose.second")
+                : dp_goal1;
+        auto ap_goal1 =
+            global_node_->has_parameter("A_patrol_pose.first.frame_id")
+                ? loadPoseStamped(global_node_, "A_patrol_pose.first")
+                : homegoal;
+        auto ap_goal2 =
+            global_node_->has_parameter("A_patrol_pose.second.frame_id")
+                ? loadPoseStamped(global_node_, "A_patrol_pose.second")
+                : ap_goal1;
 
 
         blackboard->set<geometry_msgs::msg::PoseStamped>("main_position", maingoal);
@@ -154,35 +166,27 @@ int main(int argc, char **argv) {
         blackboard->set<int>("wp_idx", 0);
         blackboard->set<double>("wait_sec", 5.0);
         blackboard->set<std::string>("current_behavior_label", "");
-        blackboard->set<std::string>(
-            "zone_mode_csv",
-            global_node_->has_parameter("zone_mode_csv")
-                ? global_node_->get_parameter("zone_mode_csv").as_string()
-                : "");
+        blackboard->set<int>("current_sentry_mode", -1);
+        blackboard->set<std::string>("current_sentry_mode_name", "");
+        blackboard->set<std::string>("desired_sentry_mode_name", "");
+        blackboard->set<double>("desired_sentry_mode_started_at", 0.0);
+        blackboard->set<bool>("sentry_mode_override_active", false);
+        blackboard->set<double>("sentry_mode_override_started_at", 0.0);
+        blackboard->set<std::string>("sentry_mode_override_name", "");
         blackboard->set<std::string>(
             "zone_mode_topic",
             global_node_->has_parameter("zone_mode_topic")
                 ? global_node_->get_parameter("zone_mode_topic").as_string()
                 : "/sentry_mode_cmd");
         blackboard->set<std::string>(
-            "zone_map_frame",
-            global_node_->has_parameter("zone_map_frame")
-                ? global_node_->get_parameter("zone_map_frame").as_string()
-                : "map");
-        blackboard->set<std::string>(
-            "zone_robot_frame",
-            global_node_->has_parameter("zone_robot_frame")
-                ? global_node_->get_parameter("zone_robot_frame").as_string()
-                : "base_link");
-        blackboard->set<std::string>(
-            "zone_default_mode",
-            global_node_->has_parameter("zone_default_mode")
-                ? global_node_->get_parameter("zone_default_mode").as_string()
-                : "defense");
-        blackboard->set<std::string>(
             "front_patrol_csv",
             global_node_->has_parameter("front_patrol_csv")
                 ? global_node_->get_parameter("front_patrol_csv").as_string()
+                : "");
+        blackboard->set<std::string>(
+            "fortress_route_csv",
+            global_node_->has_parameter("fortress_route_csv")
+                ? global_node_->get_parameter("fortress_route_csv").as_string()
                 : "");
 
 

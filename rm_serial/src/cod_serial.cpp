@@ -39,10 +39,6 @@ private:
         // 读取数据
         if (uart.read(package, sizeof(package)) == sizeof(package)) {
             if (header == package[0]) {
-                is_recover = package[14];
-                self_status = package[15];
-                zone_status = package[16];
-                is_defence = package[17];
                 std::memcpy(&hp,&package[18],sizeof(float));
                 return true;
             }else {
@@ -60,28 +56,9 @@ private:
         auto msg = rm_interfaces::msg::SerialReceiveData();
 
         if (receiveData(uart_)) {
-            // 根据实际需求将浮点数映射到消息字段
-            msg.judge_system_data.hp = hp;
-            RCLCPP_INFO(this->get_logger(), "发布hp: %f", msg.judge_system_data.hp);
-
-            msg.judge_system_data.zone_status = zone_status;
-            RCLCPP_INFO(this->get_logger(), "发布zone_status: %d", msg.judge_system_data.zone_status);
-            msg.judge_system_data.self_status = self_status;
-
-            msg.judge_system_data.is_defence = is_defence;
-            RCLCPP_INFO(this->get_logger(), "发布is_defence: %d", msg.judge_system_data.is_defence);
-
-            msg.judge_system_data.is_attack = is_attack;
-            RCLCPP_INFO(this->get_logger(), "发布is_attack: %d", msg.judge_system_data.is_attack);
-            msg.judge_system_data.is_recover = is_recover;
-
-        } else {
-              //如果没有新数据，使用默认值
-              // msg.judge_system_data.hp = 400.0;
-              // msg.judge_system_data.zone_status = false;
-              // msg.judge_system_data.is_defence = false;
-              // msg.judge_system_data.is_attack = false;
-              // RCLCPP_INFO(this->get_logger(), "使用默认值...........................");
+            msg.source_mode = "seven";
+            msg.hp = static_cast<uint16_t>(std::max(0.0f, hp));
+            RCLCPP_INFO(this->get_logger(), "发布 hp: %u", msg.hp);
         }
 
         // 发布消息
@@ -93,11 +70,6 @@ private:
     rclcpp::TimerBase::SharedPtr timer_;
     UartTransporter uart_= UartTransporter("/dev/ttyACM0",115200);
     float hp = 400.0;
-    bool self_status = false;
-    bool is_defence = false;
-    bool is_attack = false;
-    bool is_recover = false;
-    bool zone_status = false;
 };
 
 // 主函数

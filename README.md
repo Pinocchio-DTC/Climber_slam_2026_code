@@ -45,7 +45,7 @@ cd ~/ros2_ws
 colcon build --symlink-install
 
 # 或仅编译指定包
-colcon build --symlink-install --packages-select rm_interfaces cod_serial cod_behavior
+colcon build --symlink-install --packages-select rm_interfaces rm_serial cod_behavior
 
 # 加载环境
 source install/setup.bash

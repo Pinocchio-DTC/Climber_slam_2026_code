@@ -1,5 +1,3 @@
-JudgeSystemData judge_system_data
-
 # Source and frame type from talker parser: "three" or "seven"
 string source_mode
 uint32 match_time

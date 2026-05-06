@@ -28,12 +28,10 @@ private:
         // 创建要发布的消息
         auto msg = rm_interfaces::msg::SerialReceiveData();
 
-        msg.judge_system_data.hp = 400.0;
-        msg.judge_system_data.zone_status = false;
-        msg.judge_system_data.is_defence = false;
-        msg.judge_system_data.is_attack = false;
+        msg.hp = 400;
+        msg.source_mode = "seven";
 
-        RCLCPP_INFO(this->get_logger(), "使用hp = 400.0      zone_status = false      is_defence = false         is_attack = false\n");
+        RCLCPP_INFO(this->get_logger(), "使用 hp = 400\n");
 
         // 发布消息
         publisher_->publish(msg);

@@ -1,11 +1,8 @@
 #pragma once
 #include "include.h"
-#include "cod_behavior/zone_mode_switcher.hpp"
 #include "behaviortree_ros2/bt_topic_pub_node.hpp"
 #include "std_msgs/msg/int32.hpp"
-
-#include <filesystem>
-#include <tf2/time.h>
+#include "std_msgs/msg/string.hpp"
 
 /**
  * @brief 通过话题发布Nav2目标点的行为树节点
@@ -75,20 +72,38 @@ public:
         }
 
         const std::string &label = label_res.value();
+        std::shared_ptr<rclcpp::Node> global_node;
         std::string last_label;
+        try {
+            global_node = config().blackboard->get<std::shared_ptr<rclcpp::Node>>("global_node");
+        } catch (const std::exception &) {
+            global_node.reset();
+        }
         try {
             last_label = config().blackboard->get<std::string>("current_behavior_label");
         } catch (const std::exception &) {
             last_label.clear();
         }
 
+        if (!behavior_pub_ && global_node) {
+            behavior_pub_ = global_node->create_publisher<std_msgs::msg::String>(
+                "/current_behavior_label", 10);
+        }
+        if (behavior_pub_) {
+            std_msgs::msg::String msg;
+            msg.data = label;
+            behavior_pub_->publish(msg);
+        }
+
         if (last_label != label) {
-            std::cout << "Current behavior: " << label << std::endl;
             config().blackboard->set("current_behavior_label", label);
         }
 
         return BT::NodeStatus::SUCCESS;
     }
+
+private:
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr behavior_pub_;
 };
 
 class SendNav2Goal : public BT::RosActionNode<nav2_msgs::action::NavigateToPose> {
@@ -258,6 +273,13 @@ public:
 
     void onHalt() override {
         RCLCPP_WARN(logger(), "FollowWaypointsAction: 多点导航已被中断");
+        try {
+            BT::RosActionNode<nav2_msgs::action::FollowWaypoints>::onHalt();
+        } catch (const rclcpp_action::exceptions::UnknownGoalHandleError &e) {
+            RCLCPP_WARN(logger(), "Ignored UnknownGoalHandleError during halt: %s", e.what());
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(logger(), "Exception caught during halt: %s", e.what());
+        }
     }
 
     BT::NodeStatus onResultReceived(const WrappedResult &wr) override {
@@ -361,6 +383,13 @@ public:
 
     void onHalt() override {
         RCLCPP_WARN(logger(), "NavigateThroughPosesAction: 穿越导航已被中断");
+        try {
+            BT::RosActionNode<nav2_msgs::action::NavigateThroughPoses>::onHalt();
+        } catch (const rclcpp_action::exceptions::UnknownGoalHandleError &e) {
+            RCLCPP_WARN(logger(), "Ignored UnknownGoalHandleError during halt: %s", e.what());
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(logger(), "Exception caught during halt: %s", e.what());
+        }
     }
 
     BT::NodeStatus onResultReceived(const WrappedResult &wr) override {
@@ -392,229 +421,151 @@ private:
     int total_waypoints_;
 };
 
-class ZoneModeSwitcherAction : public BT::SyncActionNode {
+class SetSentryMode : public BT::SyncActionNode {
 public:
-    ZoneModeSwitcherAction(
+    SetSentryMode(const std::string &name, const BT::NodeConfiguration &config)
+        : BT::SyncActionNode(name, config) {}
+
+    SetSentryMode(
         const std::string &name,
         const BT::NodeConfiguration &config,
         const std::shared_ptr<rclcpp::Node> &global_node)
         : BT::SyncActionNode(name, config),
-          global_node_(global_node),
-          tf_buffer_(std::make_shared<tf2_ros::Buffer>(global_node_->get_clock())),
-          tf_listener_(*tf_buffer_)
-    {
-    }
+          global_node_(global_node)
+    {}
 
     static BT::PortsList providedPorts() {
         return {
-            BT::InputPort<std::string>("zone_csv", "模式区域 CSV 文件路径"),
-            BT::InputPort<std::string>("map_frame", "map", "地图坐标系"),
-            BT::InputPort<std::string>("robot_frame", "base_link", "机器人基座坐标系"),
+            BT::InputPort<std::string>("mode", "defense", "要发送的哨兵模式: move/attack/defense"),
             BT::InputPort<std::string>("mode_topic", "/sentry_mode_cmd", "模式命令话题"),
-            BT::InputPort<std::string>("default_mode", "defense", "未命中区域时的默认模式"),
-            BT::InputPort<unsigned>("publish_interval_ms", 200U, "重复发布周期，避免下位机漏包"),
-            BT::OutputPort<int>("Current_mode"),
-            BT::OutputPort<std::string>("Current_mode_name"),
-            BT::OutputPort<double>("Robot_x"),
-            BT::OutputPort<double>("Robot_y"),
         };
     }
 
     BT::NodeStatus tick() override {
-        const std::string zone_csv = getStringInput("zone_csv", "");
-        const std::string map_frame = getStringInput("map_frame", "map");
-        const std::string robot_frame = getStringInput("robot_frame", "base_link");
-        const std::string mode_topic = getStringInput("mode_topic", "/sentry_mode_cmd");
-        const std::string default_mode_name = getStringInput("default_mode", "defense");
-        const unsigned publish_interval_ms = getUnsignedInput("publish_interval_ms", 200U);
+        const auto mode_res = getInput<std::string>("mode");
+        const std::string mode_name = (mode_res && !mode_res.value().empty()) ? mode_res.value() : "defense";
+        const auto topic_res = getInput<std::string>("mode_topic");
+        const std::string mode_topic = (topic_res && !topic_res.value().empty()) ? topic_res.value() : "/sentry_mode_cmd";
 
-        ensurePublisher(mode_topic);
-        reloadZonesIfNeeded(zone_csv);
+        if (modeToValue(mode_name) < 0) {
+            RCLCPP_ERROR(rclcpp::get_logger("SetSentryMode"),
+                         "未知模式名称: %s", mode_name.c_str());
+            return BT::NodeStatus::FAILURE;
+        }
 
-        const auto maybe_default_mode = cod_behavior::parseZoneMode(default_mode_name);
-        const cod_behavior::ZoneMode default_mode =
-            maybe_default_mode.value_or(cod_behavior::ZoneMode::DEFENSE);
+        const double now = steadySeconds();
+        std::string desired_mode_name = getBlackboardValue<std::string>("desired_sentry_mode_name", "");
+        double desired_mode_started_at = getBlackboardValue<double>("desired_sentry_mode_started_at", now);
+        bool override_active = getBlackboardValue<bool>("sentry_mode_override_active", false);
+        double override_started_at = getBlackboardValue<double>("sentry_mode_override_started_at", now);
+        std::string override_mode_name = getBlackboardValue<std::string>("sentry_mode_override_name", "");
 
-        double robot_x = last_robot_x_;
-        double robot_y = last_robot_y_;
-        if (!lookupRobotPose(map_frame, robot_frame, robot_x, robot_y)) {
-            setOutputs(last_mode_, last_robot_x_, last_robot_y_);
+        if (desired_mode_name != mode_name) {
+            desired_mode_name = mode_name;
+            desired_mode_started_at = now;
+        }
+
+        std::string publish_mode_name = mode_name;
+        if (override_active) {
+            if ((now - override_started_at) >= override_duration_sec_) {
+                override_active = false;
+                override_mode_name.clear();
+                desired_mode_started_at = now;
+                publish_mode_name = mode_name;
+            } else {
+                publish_mode_name = override_mode_name;
+            }
+        } else if ((now - desired_mode_started_at) >= max_mode_duration_sec_) {
+            override_active = true;
+            override_started_at = now;
+            override_mode_name = fallbackModeFor(mode_name);
+            publish_mode_name = override_mode_name;
+        }
+
+        config().blackboard->set("desired_sentry_mode_name", desired_mode_name);
+        config().blackboard->set("desired_sentry_mode_started_at", desired_mode_started_at);
+        config().blackboard->set("sentry_mode_override_active", override_active);
+        config().blackboard->set("sentry_mode_override_started_at", override_started_at);
+        config().blackboard->set("sentry_mode_override_name", override_mode_name);
+
+        const int target_mode = modeToValue(publish_mode_name);
+        int current_mode = -1;
+        std::string current_mode_name;
+        try {
+            current_mode = config().blackboard->get<int>("current_sentry_mode");
+        } catch (const std::exception &) {
+        }
+        try {
+            current_mode_name = config().blackboard->get<std::string>("current_sentry_mode_name");
+        } catch (const std::exception &) {
+        }
+
+        if (current_mode == target_mode && current_mode_name == publish_mode_name) {
             return BT::NodeStatus::SUCCESS;
         }
 
-        last_robot_x_ = robot_x;
-        last_robot_y_ = robot_y;
-
-        cod_behavior::ZoneMode target_mode = default_mode;
-        if (const auto maybe_zone_mode = cod_behavior::resolveZoneMode(zones_, robot_x, robot_y); maybe_zone_mode.has_value()) {
-            target_mode = maybe_zone_mode.value();
+        if (!mode_pub_ || mode_topic != current_topic_) {
+            mode_pub_ = global_node_->create_publisher<std_msgs::msg::Int32>(mode_topic, 10);
+            current_topic_ = mode_topic;
         }
 
-        maybePublishMode(target_mode, publish_interval_ms, robot_x, robot_y);
-        setOutputs(target_mode, robot_x, robot_y);
+        std_msgs::msg::Int32 msg;
+        msg.data = target_mode;
+        mode_pub_->publish(msg);
+
+        config().blackboard->set("current_sentry_mode", target_mode);
+        config().blackboard->set("current_sentry_mode_name", publish_mode_name);
+
+        RCLCPP_INFO(global_node_->get_logger(),
+                    "SetSentryMode: 发布模式 %s(%d) 到 %s, 期望模式 %s",
+                    publish_mode_name.c_str(),
+                    target_mode,
+                    mode_topic.c_str(),
+                    mode_name.c_str());
         return BT::NodeStatus::SUCCESS;
     }
 
 private:
-    std::string getStringInput(const std::string &port_name, const std::string &fallback) {
-        const auto value = getInput<std::string>(port_name);
-        if (value && !value.value().empty()) {
-            return value.value();
+    static int modeToValue(const std::string &mode_name) {
+        if (mode_name == "move") {
+            return 3;
         }
-        return fallback;
+        if (mode_name == "attack") {
+            return 1;
+        }
+        if (mode_name == "defense") {
+            return 2;
+        }
+        return -1;
     }
 
-    unsigned getUnsignedInput(const std::string &port_name, unsigned fallback) {
-        const auto value = getInput<unsigned>(port_name);
-        if (value) {
-            return value.value();
+    static std::string fallbackModeFor(const std::string &mode_name) {
+        if (mode_name == "defense") {
+            return "move";
         }
-        return fallback;
+        return "defense";
     }
 
-    void ensurePublisher(const std::string &topic_name) {
-        if (mode_pub_ && topic_name == current_topic_) {
-            return;
-        }
-        mode_pub_ = global_node_->create_publisher<std_msgs::msg::Int32>(topic_name, 10);
-        current_topic_ = topic_name;
+    static double steadySeconds() {
+        const auto now = std::chrono::steady_clock::now().time_since_epoch();
+        return std::chrono::duration<double>(now).count();
     }
 
-    void reloadZonesIfNeeded(const std::string &zone_csv) {
-        if (zone_csv.empty()) {
-            if (!zone_csv_warned_) {
-                RCLCPP_WARN(global_node_->get_logger(), "ZoneModeSwitcher: zone_csv 为空，使用默认模式兜底");
-                zone_csv_warned_ = true;
-            }
-            zones_.clear();
-            current_zone_csv_.clear();
-            csv_stamp_.reset();
-            return;
-        }
-
-        std::optional<std::filesystem::file_time_type> current_stamp;
-        std::error_code ec;
-        const bool exists = std::filesystem::exists(zone_csv, ec);
-        if (exists && !ec) {
-            current_stamp = std::filesystem::last_write_time(zone_csv, ec);
-        }
-
-        if (zone_csv == current_zone_csv_ && current_stamp == csv_stamp_) {
-            return;
-        }
-
-        std::string error_message;
-        std::vector<cod_behavior::ModeZone> loaded_zones;
-        if (!cod_behavior::loadModeZonesFromCsv(zone_csv, loaded_zones, &error_message)) {
-            zones_.clear();
-            current_zone_csv_ = zone_csv;
-            csv_stamp_ = current_stamp;
-            RCLCPP_WARN(global_node_->get_logger(),
-                        "ZoneModeSwitcher: 加载区域文件失败 [%s]: %s",
-                        zone_csv.c_str(),
-                        error_message.c_str());
-            return;
-        }
-
-        zones_ = std::move(loaded_zones);
-        current_zone_csv_ = zone_csv;
-        csv_stamp_ = current_stamp;
-        zone_csv_warned_ = false;
-        RCLCPP_INFO(global_node_->get_logger(),
-                    "ZoneModeSwitcher: 已加载 %zu 个区域: %s",
-                    zones_.size(),
-                    zone_csv.c_str());
-    }
-
-    bool lookupRobotPose(
-        const std::string &map_frame,
-        const std::string &robot_frame,
-        double &robot_x,
-        double &robot_y)
-    {
+    template <typename T>
+    T getBlackboardValue(const std::string &key, const T &fallback) const {
         try {
-            const auto trans = tf_buffer_->lookupTransform(map_frame, robot_frame, tf2::TimePointZero);
-            robot_x = trans.transform.translation.x;
-            robot_y = trans.transform.translation.y;
-            return true;
-        }
-        catch (const std::exception &e) {
-            const auto now = global_node_->now();
-            if (!last_tf_warn_time_.has_value() ||
-                (now - last_tf_warn_time_.value()) > rclcpp::Duration::from_seconds(1.0)) {
-                RCLCPP_WARN(global_node_->get_logger(),
-                            "ZoneModeSwitcher: TF 查询失败 %s -> %s: %s",
-                            map_frame.c_str(),
-                            robot_frame.c_str(),
-                            e.what());
-                last_tf_warn_time_ = now;
-            }
-            return false;
+            return config().blackboard->get<T>(key);
+        } catch (const std::exception &) {
+            return fallback;
         }
     }
 
-    void maybePublishMode(
-        cod_behavior::ZoneMode target_mode,
-        unsigned publish_interval_ms,
-        double robot_x,
-        double robot_y)
-    {
-        if (!mode_pub_) {
-            return;
-        }
-
-        const auto now = global_node_->now();
-        const bool mode_changed = target_mode != last_mode_;
-        const bool interval_elapsed =
-            !has_published_once_ ||
-            (last_publish_time_.has_value() &&
-             (now - last_publish_time_.value()) >= rclcpp::Duration::from_nanoseconds(
-                 static_cast<int64_t>(publish_interval_ms) * 1000000LL));
-
-        if (!mode_changed && !interval_elapsed) {
-            return;
-        }
-
-        std_msgs::msg::Int32 msg;
-        msg.data = static_cast<int>(target_mode);
-        mode_pub_->publish(msg);
-
-        if (mode_changed) {
-            RCLCPP_INFO(global_node_->get_logger(),
-                        "ZoneModeSwitcher: 模式切换为 %s(%d), robot=(%.2f, %.2f)",
-                        cod_behavior::zoneModeToString(target_mode),
-                        msg.data,
-                        robot_x,
-                        robot_y);
-        }
-
-        last_mode_ = target_mode;
-        last_publish_time_ = now;
-        has_published_once_ = true;
-    }
-
-    void setOutputs(cod_behavior::ZoneMode mode, double robot_x, double robot_y) {
-        setOutput("Current_mode", static_cast<int>(mode));
-        setOutput("Current_mode_name", std::string(cod_behavior::zoneModeToString(mode)));
-        setOutput("Robot_x", robot_x);
-        setOutput("Robot_y", robot_y);
-    }
+    static constexpr double max_mode_duration_sec_{180.0};
+    static constexpr double override_duration_sec_{5.0};
 
     std::shared_ptr<rclcpp::Node> global_node_;
-    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-    tf2_ros::TransformListener tf_listener_;
     rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr mode_pub_;
     std::string current_topic_{"/sentry_mode_cmd"};
-    std::vector<cod_behavior::ModeZone> zones_;
-    std::string current_zone_csv_;
-    std::optional<std::filesystem::file_time_type> csv_stamp_;
-    cod_behavior::ZoneMode last_mode_{cod_behavior::ZoneMode::MOVE};
-    std::optional<rclcpp::Time> last_publish_time_;
-    std::optional<rclcpp::Time> last_tf_warn_time_;
-    double last_robot_x_{0.0};
-    double last_robot_y_{0.0};
-    bool has_published_once_{false};
-    bool zone_csv_warned_{false};
 };
 
 //通过接收的消息将有用的消息写入黑板实现共享
@@ -636,12 +587,6 @@ public:
     static BT::PortsList providedPorts() {
         return {
             BT::OutputPort<float>("Hp"),
-            // 兼容旧版行为树端口，避免 XML 与节点端口校验失败
-            BT::OutputPort<bool>("Zone_status"),
-            BT::OutputPort<bool>("Is_defence"),
-            BT::OutputPort<bool>("Is_attack"),
-            BT::OutputPort<bool>("Self_status"),
-            BT::OutputPort<bool>("Is_recover"),
             BT::OutputPort<bool>("Enemy_outpost_alive"),
             BT::OutputPort<bool>("Our_outpost_alive"),
             BT::OutputPort<int>("Enemy_base_hp"),
@@ -653,11 +598,6 @@ public:
 
     //设置参数
     float hp = 400;
-    bool zone_status = false;
-    bool is_defence = false;
-    bool is_attack = false;
-    bool self_status = false;
-    bool is_recover = false;
     bool enemy_outpost_alive = false;
     bool our_outpost_alive = false;
     int enemy_base_hp = 0;
@@ -673,11 +613,6 @@ public:
 
         //写入黑板
         setOutput("Hp", hp);
-        setOutput("Zone_status", zone_status);
-        setOutput("Is_defence", is_defence);
-        setOutput("Is_attack", is_attack);
-        setOutput("Self_status", self_status);
-        setOutput("Is_recover", is_recover);
         setOutput("Enemy_outpost_alive", enemy_outpost_alive);
         setOutput("Our_outpost_alive", our_outpost_alive);
         setOutput("Enemy_base_hp", enemy_base_hp);
@@ -697,13 +632,6 @@ public:
         our_base_hp = static_cast<int>(msg->our_base_hp);
         sentry_mode = static_cast<int>(msg->sentry_mode);
         sentry_buff = msg->sentry_buff;
-
-        // 旧版树字段兼容映射
-        zone_status = sentry_buff;
-        is_defence = false;
-        is_attack = false;
-        self_status = false;
-        is_recover = (hp < 210.0f);
 
         is_ReadInterface_ = true;
         RCLCPP_INFO(global_node_->get_logger(),

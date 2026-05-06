@@ -7,6 +7,7 @@
 #include <deque>
 #include <algorithm>
 #include <cmath>
+#include <sstream>
 #include <arpa/inet.h>
 
 #include "rclcpp/rclcpp.hpp"
@@ -14,6 +15,7 @@
 #include "serial/serial.h"
 #include "geometry_msgs/msg/twist.hpp"
 #include "std_msgs/msg/int32.hpp"
+#include "std_msgs/msg/string.hpp"
 
 using namespace std;
 using namespace std::chrono_literals;
@@ -74,6 +76,7 @@ private:
     // ROS2 成员
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sentry_mode_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr behavior_label_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<rm_interfaces::msg::SerialReceiveData>::SharedPtr pub_;
 
@@ -92,6 +95,12 @@ private:
     int16_t cached_vz_{0};
     uint8_t cached_sentry_mode_{0};
     rclcpp::Time last_idle_cmd_send_time_;
+    rclcpp::Time last_comm_log_time_;
+    std::string current_behavior_label_{"unknown"};
+
+    // 最近一次接收到的下行数据摘要，用于周期打印
+    std::string last_received_summary_{"no downlink yet"};
+    std::string last_sent_summary_{"tx speed[vx=0 vy=0 vz=0 mode=0]"};
 
     // --- 方法声明 ---
 
@@ -99,10 +108,13 @@ private:
     void timer_callback();
     void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
     void sentry_mode_callback(const std_msgs::msg::Int32::SharedPtr msg);
+    void behavior_label_callback(const std_msgs::msg::String::SharedPtr msg);
 
     // 解析逻辑
     void parse_three();
     void parse_seven();
+    void maybe_log_comm_state();
+    std::string build_sent_summary(int16_t vx, int16_t vy, int16_t vz) const;
 
     // 辅助函数
     uint8_t calc_checksum(const std::vector<uint8_t> &packet);

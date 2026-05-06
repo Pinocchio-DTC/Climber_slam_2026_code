@@ -12,14 +12,14 @@ def generate_launch_description():
     ])
 
     serial_node = Node(
-        package="cod_serial",
+        package="rm_serial",
         executable="talker",
-        name="cod_serial",
+        name="rm_serial",
         output="screen",
         parameters=[{
-            "enable_downlink_receive": False
+            "enable_downlink_receive": True
         }],
-        arguments=["--ros-args", "--log-level", "warn"]
+        arguments=["--ros-args", "--log-level", "info"]
     )
 
     behavior_node = Node(
@@ -32,6 +32,6 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        serial_node,
+        # serial_node,
         behavior_node
     ])

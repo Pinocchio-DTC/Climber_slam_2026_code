@@ -23,10 +23,13 @@
             "cmd_vel_nav", 10, std::bind(&ReceiveNode::cmd_vel_callback, this, std::placeholders::_1));
         sentry_mode_sub_ = this->create_subscription<std_msgs::msg::Int32>(
             "/sentry_mode_cmd", 10, std::bind(&ReceiveNode::sentry_mode_callback, this, std::placeholders::_1));
+        behavior_label_sub_ = this->create_subscription<std_msgs::msg::String>(
+            "/current_behavior_label", 10, std::bind(&ReceiveNode::behavior_label_callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
             500ms, std::bind(&ReceiveNode::timer_callback, this));
 
         last_idle_cmd_send_time_ = this->now();
+        last_comm_log_time_ = this->now();
     }
 
     // --- 析构函数实现 ---
@@ -64,7 +67,7 @@
         try
         {
             serial_port_.write(send_buff, CMD_LEN);
-            RCLCPP_INFO(this->get_logger(), "send speed: vx=%d vy=%d vz=%d", vx, vy, vz);
+            last_sent_summary_ = build_sent_summary(vx, vy, vz);
         }
         catch (const std::exception &e)
         {
@@ -89,12 +92,16 @@
     {
         const int clamped_mode = std::clamp(msg->data, 0, 255);
         cached_sentry_mode_ = static_cast<uint8_t>(clamped_mode);
-        RCLCPP_INFO(this->get_logger(), "update sentry mode cmd: %d", clamped_mode);
 
         if (!is_serial_open_)
             return;
 
         send_cmd_packet(cached_vx_, cached_vy_, cached_vz_);
+    }
+
+    void ReceiveNode::behavior_label_callback(const std_msgs::msg::String::SharedPtr msg)
+    {
+        current_behavior_label_ = msg->data;
     }
 
     void ReceiveNode::timer_callback()
@@ -149,6 +156,8 @@
                 send_cmd_packet(cached_vx_, cached_vy_, cached_vz_);
                 last_idle_cmd_send_time_ = now;
             }
+
+            maybe_log_comm_state();
         }
         catch (const serial::IOException &e)
         {
@@ -255,6 +264,17 @@
             msg.enemy_sentry_blood = enemy_sentry_blood_val;
 
             pub_->publish(msg);
+            std::ostringstream oss;
+            oss << "rx[3v3] "
+                << "match_time=" << match_time_val
+                << " score_diff=" << score_diff_val
+                << " hero_hp=" << our_hero_blood_val
+                << " infantry_hp=" << our_infantry_blood_val
+                << " sentry_hp=" << our_sentry_blood_val
+                << " enemy_hero_hp=" << enemy_hero_blood_val
+                << " enemy_infantry_hp=" << enemy_infantry_blood_val
+                << " enemy_sentry_hp=" << enemy_sentry_blood_val;
+            last_received_summary_ = oss.str();
         }
     }
 
@@ -341,7 +361,45 @@
                 msg.sentry_buff = (sentry_buff_val != 0);
 
                 pub_->publish(msg);
+                std::ostringstream oss;
+                oss << "rx[7v7] "
+                    << "match_time=" << match_time_val
+                    << " hp=" << hp_val
+                    << " enemy_outpost=" << static_cast<int>(enemy_outpost_alive_val)
+                    << " our_outpost=" << static_cast<int>(our_outpost_alive_val)
+                    << " enemy_base_hp=" << enemy_base_hp_val
+                    << " our_base_hp=" << our_base_hp_val
+                    << " sentry_mode=" << static_cast<int>(sentry_mode_val)
+                    << " sentry_buff=" << static_cast<int>(sentry_buff_val);
+                last_received_summary_ = oss.str();
         }
+    }
+
+    std::string ReceiveNode::build_sent_summary(int16_t vx, int16_t vy, int16_t vz) const
+    {
+        std::ostringstream oss;
+        oss << "tx speed[vx=" << vx
+            << " vy=" << vy
+            << " vz=" << vz
+            << " mode=" << static_cast<int>(cached_sentry_mode_) << "]";
+        return oss.str();
+    }
+
+    void ReceiveNode::maybe_log_comm_state()
+    {
+        const auto now = this->now();
+        if ((now - last_comm_log_time_).nanoseconds() < 1000000000LL)
+        {
+            return;
+        }
+
+        RCLCPP_INFO(
+            this->get_logger(),
+            "behavior=%s | %s | %s",
+            current_behavior_label_.c_str(),
+            last_sent_summary_.c_str(),
+            last_received_summary_.c_str());
+        last_comm_log_time_ = now;
     }
 
     // --- main 函数 ---

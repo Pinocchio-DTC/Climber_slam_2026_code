@@ -8,13 +8,13 @@ def generate_launch_description():
     nav_pose_yaml = PathJoinSubstitution([
         FindPackageShare("cod_behavior"),
         "launch",
-        "cod_pose_front.yaml"
+        "cod_pose_tactical_front.yaml"
     ])
 
     serial_node = Node(
-        package="cod_serial",
+        package="rm_serial",
         executable="talker",
-        name="cod_serial",
+        name="rm_serial",
         output="screen"
     )
 

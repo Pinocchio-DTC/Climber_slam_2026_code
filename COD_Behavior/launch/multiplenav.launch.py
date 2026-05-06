@@ -12,9 +12,9 @@ def generate_launch_description():
     ])
 
     serial_node = Node(
-        package="cod_serial",
-        executable="cod_serial",
-        name="cod_serial",
+        package="rm_serial",
+        executable="rm_serial",
+        name="rm_serial",
         output="screen"
     )
 
