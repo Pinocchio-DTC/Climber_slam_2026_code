@@ -438,6 +438,7 @@ public:
         return {
             BT::InputPort<std::string>("mode", "defense", "要发送的哨兵模式: move/attack/defense"),
             BT::InputPort<std::string>("mode_topic", "/sentry_mode_cmd", "模式命令话题"),
+            BT::InputPort<bool>("enable_auto_fallback", false, "同一模式持续过久后是否自动切换到 fallback 模式"),
         };
     }
 
@@ -446,6 +447,8 @@ public:
         const std::string mode_name = (mode_res && !mode_res.value().empty()) ? mode_res.value() : "defense";
         const auto topic_res = getInput<std::string>("mode_topic");
         const std::string mode_topic = (topic_res && !topic_res.value().empty()) ? topic_res.value() : "/sentry_mode_cmd";
+        const auto fallback_res = getInput<bool>("enable_auto_fallback");
+        const bool enable_auto_fallback = fallback_res ? fallback_res.value() : false;
 
         if (modeToValue(mode_name) < 0) {
             RCLCPP_ERROR(rclcpp::get_logger("SetSentryMode"),
@@ -475,7 +478,7 @@ public:
             } else {
                 publish_mode_name = override_mode_name;
             }
-        } else if ((now - desired_mode_started_at) >= max_mode_duration_sec_) {
+        } else if (enable_auto_fallback && (now - desired_mode_started_at) >= max_mode_duration_sec_) {
             override_active = true;
             override_started_at = now;
             override_mode_name = fallbackModeFor(mode_name);

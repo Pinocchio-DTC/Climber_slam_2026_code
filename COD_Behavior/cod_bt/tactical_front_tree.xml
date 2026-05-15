@@ -15,77 +15,51 @@
         </Inverter>
 
         <ReactiveSequence>
-          <HpCondition Hp="{hp}"/>
-          <ReactiveSequence>
-            <SetSentryMode mode="defense"
+          <HpCondition Hp="{hp}"
+                       threshold="300"/>
+          <Sequence>
+            <SetSentryMode mode="move"
                            mode_topic="{zone_mode_topic}"/>
-            <AnnounceBehavior label="低血回家"/>
+            <AnnounceBehavior label="低血回家待命"/>
             <PubNav2Goal goal_pose="{home_position}"
                          frame_id="map"
                          min_pub_interval_ms="500"/>
             <WaitUntilReached goal_pose="{home_position}"
                               tolerance="0.5"/>
-          </ReactiveSequence>
-        </ReactiveSequence>
-
-        <ReactiveSequence>
-          <BaseHpBelowCondition Our_base_hp="{our_base_hp}"
-                                threshold="3000"/>
-          <ReactiveSequence>
-            <SetSentryMode mode="move"
-                           mode_topic="{zone_mode_topic}"/>
-            <AnnounceBehavior label="回堡垒区"/>
-            <FollowWaypointsAction waypoint_file="{fortress_route_csv}"
-                                   frame_id="map"/>
-            <SetSentryMode mode="attack"
-                           mode_topic="{zone_mode_topic}"/>
-          </ReactiveSequence>
-        </ReactiveSequence>
-
-        <ReactiveSequence>
-          <HpAboveCondition Hp="{hp}"
-                            threshold="400"/>
-          <Sequence>
-            <SetSentryMode mode="defense"
-                           mode_topic="{zone_mode_topic}"/>
-            <AnnounceBehavior label="前场巡逻"/>
-            <LoadWaypoints waypoint_file="{front_patrol_csv}"
-                           frame_id="map"
-                           waypoints="{waypoints}"
-                           wait_times="{wait_times}"
-                           total_waypoints="{total_wp}"
-                           wp_idx="{wp_idx}"/>
-            <KeepRunningUntilFailure>
-              <Sequence>
-                <GetCurrentWaypoint waypoints="{waypoints}"
-                                    wait_times="{wait_times}"
-                                    wp_idx="{wp_idx}"
-                                    current_goal="{current_goal}"
-                                    current_wait_sec="{wait_sec}"/>
-                <ReactiveSequence>
-                  <PubNav2Goal goal_pose="{current_goal}"
-                               frame_id="map"
-                               min_pub_interval_ms="500"/>
-                  <WaitUntilReached goal_pose="{current_goal}"
-                                    tolerance="0.5"/>
-                </ReactiveSequence>
-                <WaitDuration duration_sec="5.0"/>
-                <NextWaypoint wp_idx="{wp_idx}"
-                              total_waypoints="{total_wp}"/>
-              </Sequence>
-            </KeepRunningUntilFailure>
           </Sequence>
         </ReactiveSequence>
 
         <ReactiveSequence>
-          <SetSentryMode mode="defense"
-                         mode_topic="{zone_mode_topic}"/>
-          <AnnounceBehavior label="回家待命"/>
-          <PubNav2Goal goal_pose="{home_position}"
-                       frame_id="map"
-                       min_pub_interval_ms="500"/>
-          <WaitUntilReached goal_pose="{home_position}"
-                            tolerance="0.5"/>
+          <Sequence>
+            <SetSentryMode mode="move"
+                           mode_topic="{zone_mode_topic}"/>
+            <AnnounceBehavior label="执行test路线"/>
+            <LoadWaypoints waypoint_file="{front_patrol_csv}"
+                           frame_id="map"
+                           waypoints="{front_waypoints}"
+                           wait_times="{front_wait_times}"
+                           total_waypoints="{front_total_waypoints}"
+                           wp_idx="{front_wp_idx}"/>
+            <KeepRunningUntilFailure>
+              <Sequence>
+                <GetCurrentWaypoint waypoints="{front_waypoints}"
+                                    wait_times="{front_wait_times}"
+                                    wp_idx="{front_wp_idx}"
+                                    current_goal="{front_current_goal}"
+                                    current_wait_sec="{front_current_wait_sec}"/>
+                <Sequence>
+                  <PubNav2Goal goal_pose="{front_current_goal}"
+                               frame_id="map"
+                               min_pub_interval_ms="500"/>
+                  <WaitUntilReached goal_pose="{front_current_goal}"
+                                    tolerance="0.5"/>
+                </Sequence>
+                <WaitDuration duration_sec="{front_current_wait_sec}"/>
+                <NextWaypoint wp_idx="{front_wp_idx}"
+                              total_waypoints="{front_total_waypoints}"/>
+              </Sequence>
+            </KeepRunningUntilFailure>
+          </Sequence>
         </ReactiveSequence>
       </ReactiveFallback>
     </KeepRunningUntilFailure>
@@ -103,6 +77,7 @@
     <Condition ID="HpCondition"
                editable="true">
       <input_port name="Hp"/>
+      <input_port name="threshold"/>
     </Condition>
     <Condition ID="HpAboveCondition"
                editable="true">
@@ -147,6 +122,7 @@
             editable="true">
       <input_port name="mode"/>
       <input_port name="mode_topic"/>
+      <input_port name="enable_auto_fallback"/>
     </Action>
     <Action ID="WaitDuration"
             editable="true">

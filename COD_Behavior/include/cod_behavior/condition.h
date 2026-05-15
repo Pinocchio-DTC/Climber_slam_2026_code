@@ -8,19 +8,24 @@ public:
         : BT::ConditionNode(name, config) {}
 
     static BT::PortsList providedPorts() {
-        return {BT::InputPort<float>("Hp")};
+        return {
+            BT::InputPort<float>("Hp"),
+            BT::InputPort<float>("threshold", 210.0f, "hp must be lower than this threshold")
+        };
     }
 
     BT::NodeStatus tick() override {
         auto hp_ = getInput<float>("Hp");
+        auto threshold_ = getInput<float>("threshold");
 
-        if (!hp_) {
+        if (!hp_ || !threshold_) {
             throw BT::RuntimeError(
-                "missing input [Hp]: ", hp_.error()
+                "missing input [Hp] or [threshold]"
             );
         }
-        float hp = hp_.value();
-        if (hp < 210) {
+        const float hp = hp_.value();
+        const float threshold = threshold_.value();
+        if (hp < threshold) {
             return BT::NodeStatus::SUCCESS;
         }
 
