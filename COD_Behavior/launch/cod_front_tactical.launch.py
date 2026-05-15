@@ -17,6 +17,7 @@ def generate_launch_description():
         name="rm_serial",
         output="screen",
         parameters=[{
+            "port_name": "/dev/ttySLAM",
             "enable_downlink_receive": True
         }],
         arguments=["--ros-args", "--log-level", "info"]
@@ -32,6 +33,6 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        # serial_node,
+        serial_node,
         behavior_node
     ])

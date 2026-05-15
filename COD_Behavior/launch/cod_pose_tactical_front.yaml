@@ -2,9 +2,11 @@ cod_behavior:
   ros__parameters:
     cod_bt_path:
       "COD_Behavior/cod_bt/tactical_front_tree.xml"
+    enable_groot2: true
+    groot2_port: 5555
     zone_mode_topic: "/sentry_mode_cmd"
-    front_patrol_csv: "/home/nucshao/Climber_slam_2026_NAV/src/cod_bringup/wps/test2.csv"
-    fortress_route_csv: "/home/nucshao/Climber_slam_2026_NAV/src/cod_bringup/wps/go_fort.csv"
+    front_patrol_csv: "/home/nucshao/Climber_slam_2026_NAV/src/rm_bringup/wps/test.csv"
+    fortress_route_csv: "/home/nucshao/Climber_slam_2026_NAV/src/rm_bringup/wps/back.csv"
     nav_pose:
       home:
         frame_id: "map"
