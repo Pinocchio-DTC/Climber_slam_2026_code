@@ -579,7 +579,6 @@ public:
                       const std::shared_ptr<rclcpp::Node> &global_node)
         : BT::SyncActionNode(name, config),
           global_node_(global_node) {
-        global_node_ = rclcpp::Node::make_shared("WriteToBlackboard");
         sub_ = global_node_->create_subscription<rm_interfaces::msg::SerialReceiveData>(
             "/SerialReceiveData", 10,
             std::bind(&WriteToBlackboard::callback, this, std::placeholders::_1));
@@ -609,8 +608,6 @@ public:
     bool sentry_buff = false;
 
     BT::NodeStatus tick() override {
-        // 处理回调
-        rclcpp::spin_some(global_node_); //只处理当前队列中的回s后就返回
         if (!is_ReadInterface_)
             return BT::NodeStatus::FAILURE;
 

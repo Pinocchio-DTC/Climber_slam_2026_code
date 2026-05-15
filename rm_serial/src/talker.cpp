@@ -30,6 +30,13 @@
 
         last_idle_cmd_send_time_ = this->now();
         last_comm_log_time_ = this->now();
+
+        RCLCPP_INFO(this->get_logger(),
+                    "rm_serial talker started: port=%s baud=%d data_type=%s enable_downlink_receive=%s",
+                    port_name_.c_str(),
+                    baud_rate_,
+                    data_type_.c_str(),
+                    enable_downlink_receive_ ? "true" : "false");
     }
 
     // --- 析构函数实现 ---
@@ -78,9 +85,9 @@
     // --- cmd_vel_callback 实现 (发送速度到下位机) ---
     void ReceiveNode::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
     {
-        cached_vx_ = static_cast<int16_t>(msg->linear.x * 6000);
-        cached_vy_ = static_cast<int16_t>(msg->linear.y * 6000);
-        cached_vz_ = static_cast<int16_t>(msg->angular.z * 6000);
+        cached_vx_ = static_cast<int16_t>(msg->linear.x * 2000);
+        cached_vy_ = static_cast<int16_t>(msg->linear.y * 2000);
+        cached_vz_ = static_cast<int16_t>(msg->angular.z * 2000);
 
         if (!is_serial_open_)
             return;
@@ -117,15 +124,27 @@
             {
                 serial_port_.open();
                 is_serial_open_ = true;
+                reported_serial_open_failure_ = false;
+                RCLCPP_INFO(this->get_logger(), "Serial port opened: %s", port_name_.c_str());
             }
             catch (const serial::IOException &e)
             {
-                (void)e;
+                if (!reported_serial_open_failure_)
+                {
+                    RCLCPP_WARN(this->get_logger(), "Failed to open serial port %s: %s",
+                                port_name_.c_str(), e.what());
+                    reported_serial_open_failure_ = true;
+                }
                 return;
             }
             catch (const std::exception &e)
             {
-                (void)e;
+                if (!reported_serial_open_failure_)
+                {
+                    RCLCPP_WARN(this->get_logger(), "Failed to open serial port %s: %s",
+                                port_name_.c_str(), e.what());
+                    reported_serial_open_failure_ = true;
+                }
                 return;
             }
         }

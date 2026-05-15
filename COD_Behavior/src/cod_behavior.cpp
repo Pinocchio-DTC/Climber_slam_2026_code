@@ -190,8 +190,25 @@ int main(int argc, char **argv) {
                 : "");
 
 
-        
-        BT::Groot2Publisher publisher(tree, 5555);
+        const bool enable_groot2 =
+            global_node_->has_parameter("enable_groot2")
+                ? global_node_->get_parameter("enable_groot2").as_bool()
+                : true;
+        const int groot2_port =
+            global_node_->has_parameter("groot2_port")
+                ? static_cast<int>(global_node_->get_parameter("groot2_port").as_int())
+                : 5555;
+
+        std::unique_ptr<BT::Groot2Publisher> groot2_publisher;
+        if (enable_groot2) {
+            try {
+                groot2_publisher = std::make_unique<BT::Groot2Publisher>(tree, groot2_port);
+                RCLCPP_INFO(global_node_->get_logger(), "Groot2Publisher 已启动，端口: %d", groot2_port);
+            } catch (const std::exception &e) {
+                RCLCPP_WARN(global_node_->get_logger(),
+                            "Groot2Publisher 启动失败，行为树将继续运行: %s", e.what());
+            }
+        }
 
         // ========== 核心：单线程主循环（同时处理 ROS 回调 + 行为树） ==========
         while (rclcpp::ok()) {

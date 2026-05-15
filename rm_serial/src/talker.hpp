@@ -87,6 +87,7 @@ private:
     std::string data_type_;
     bool enable_downlink_receive_;
     bool is_serial_open_;
+    bool reported_serial_open_failure_{false};
     std::deque<uint8_t> buffer_;
 
     // 发送到底盘的最新速度缓存（按10Hz周期发送）
